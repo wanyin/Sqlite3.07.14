@@ -13,7 +13,7 @@
 **
 ** This file contains functions for allocating memory, comparing
 ** strings, and stuff like that.
-**
+**文件包含用于分配内存的功能，比较字符串和类似的东西。
 */
 #include "sqliteInt.h"
 #include <stdarg.h>
@@ -22,7 +22,7 @@
 #endif
 
 /*
-** Routine needed to support the testcase() macro.
+** Routine needed to support the testcase() macro.程序需要支持testcase()宏。
 */
 #ifdef SQLITE_COVERAGE_TEST
 void sqlite3Coverage(int x){
@@ -37,6 +37,9 @@ void sqlite3Coverage(int x){
 **
 ** Use the math library isnan() function if compiled with SQLITE_HAVE_ISNAN.
 ** Otherwise, we have our own implementation that works on most systems.
+如果浮点指针值不是一个数，返回真。如果编译SQLITE_HAVE_ISNAN，
+就调用math库的isnan() 函数。否则，工作在大多数系统上，我们有
+自己的实现
 */
 int sqlite3IsNaN(double x){
   int rc;   /* The value return */
@@ -63,6 +66,14 @@ int sqlite3IsNaN(double x){
   **      The compiler [with /fp:precise] will properly handle comparisons 
   **      involving NaN. For example, x != x evaluates to true if x is NaN 
   **      ...
+  支持isnan()库函数的系统也应该使利用它编译-DSQLITE_HAVE_ISNAN。
+  但是我们发现，许多的系统没有isnan()函数,所以这个实现作为一个
+  替代。如果用GCC编译-ffast-math，这个NaN测试有时候会失败。另
+  一方面，使用-ffast-math会伴随一下的警告这个选项 [-ffast-math] 
+  不能够打开-O选项，因为它能够导致那些依靠精确实现IEEE或者ISO
+  规则/规范的数学函数程序的错误输出。在MSVC下，如果编译高精度的
+  浮点模型，除了/fp:precise外，这个NaN测试可能会失败。编译器
+  [with /fp:precise] 将可能处理涉及NaN的比较。
   */
 #ifdef __FAST_MATH__
 # error SQLite will not work correctly with the -ffast-math option of GCC.
@@ -85,6 +96,9 @@ int sqlite3IsNaN(double x){
 ** The value returned will never be negative.  Nor will it ever be greater
 ** than the actual length of the string.  For very long strings (greater
 ** than 1GiB) the value returned might be less than the true string length.
+计算字符串的长度。这些字符串被限制存储在32位有符号整数的低30位。
+这个返回值永远不会是负数，也不会是大于字符串实际长度的数。对于很
+长的字符串返回值可能是一个小余真实字符串的长度。
 */
 int sqlite3Strlen30(const char *z){
   const char *z2 = z;
@@ -113,6 +127,16 @@ int sqlite3Strlen30(const char *z){
 ** To clear the most recent error for sqlite handle "db", sqlite3Error
 ** should be called with err_code set to SQLITE_OK and zFormat set
 ** to NULL.
+设置sqlite处理数据库时最新的错误代码和字符串。错误的代码被设置为"err_code"。
+如果错误字符串不为空,字符串zFormat指定了错误字符串在printf函数中的格式。
+以下格式被允许：
+%s      Insert a string     插入一个整数型
+%z      A string that should be freed after use     字符串在使用后被释放
+%d      Insert an integer 插入一个整数
+%T      Insert a token插入一个令牌
+%S      Insert the first element of a SrcList  插入 SrcList的第一个元素
+zformat和任何跟随它的字符串标记被假定为UTF-8编码。清除 sqlite处理db时所
+产生的最新错误,应该调用sqlite3error设置 err_code为 sqlite_ok和zformat为空。
 */
 void sqlite3Error(sqlite3 *db, int err_code, const char *zFormat, ...){
   if( db && (db->pErr || (db->pErr = sqlite3ValueNew(db))!=0) ){
@@ -146,6 +170,16 @@ void sqlite3Error(sqlite3 *db, int err_code, const char *zFormat, ...){
 ** stored by this function into the database handle using sqlite3Error().
 ** Function sqlite3Error() should be used during statement execution
 ** (sqlite3_step() etc.).
+增加一个错误的信息到 pParse->zErrMsg并添加到 pParse->nErr。
+以下格式被允许：
+%s      Insert a string     插入一个整数型
+%z      A string that should be freed after use     字符串在使用后被释放
+%d      Insert an integer 插入一个整数
+%T      Insert a token插入一个令牌
+%S      Insert the first element of a SrcList  插入 SrcList的第一个元素
+这个函数用于报告任何编译SQL语句时出现的错误。sqlite3_prepare（）函数做的
+最后一件事是复制这个函数存储错误使用到sqlite3Error（）数据库句柄。在执行
+语句是，函数 sqlite3Error()应该被使用。
 */
 void sqlite3ErrorMsg(Parse *pParse, const char *zFormat, ...){
   char *zMsg;
@@ -180,6 +214,10 @@ void sqlite3ErrorMsg(Parse *pParse, const char *zFormat, ...){
 ** 2002-Feb-14: This routine is extended to remove MS-Access style
 ** brackets from around identifers.  For example:  "[a-b-c]" becomes
 ** "a-b-c".
+转换一个 SQL类型的引用字符串为常规字符串，通过去掉引用符。在原地完成转换。
+如果输入不是以一个引用字符开始，那么这个程序就是一个空操作输入的字符串必须
+是零终止。一个新的零终止字符加到dequoted字符串如果 dequoting 没有发生或未用
+引号引起的字符串长度，则返回-1.如果dequoting 发生，则以零终止。
 */
 int sqlite3Dequote(char *z){
   char quote;
@@ -221,6 +259,9 @@ int sqlite3Dequote(char *z){
 ** the contents of two buffers containing UTF-8 strings in a
 ** case-independent fashion, using the same definition of "case
 ** independence" that SQLite uses internally when comparing identifiers.
+有些系统有 stricmp(),而其他有strcasecmp()。因为没有一致性，我们将定义自己的函数
+R-30243-02494 的sqlite3_stricmp()和sqlite3_strnicmp()API允许应用程序和扩展程序
+在不依赖相应实例时，比较包含 UTF-8字符串的两个缓冲区中的内容。
 */
 int sqlite3_stricmp(const char *zLeft, const char *zRight){
   register unsigned char *a, *b;
@@ -258,6 +299,17 @@ int sqlite3_strnicmp(const char *zLeft, const char *zRight, int N){
 ** If some prefix of the input string is a valid number, this routine
 ** returns FALSE but it still converts the prefix and writes the result
 ** into *pResult.
+字符串 z[] 是一个表示实数的文本把这个字符串转换为double类型并将其写入*pResult.
+z[] 字符串 长度是长字节 并使用enc编码。这个字符串不需要零终止如果结果是一个有
+效的实数返回true（或整数），如果字符串是空的或包含多余的文字。有效数字在这些格
+式之一
+**
+**    [+-]digits[E[+-]digits]
+**    [+-]digits.[digits][E[+-]digits]
+**    [+-].digits[E[+-]digits]
+**
+开头 和末尾  空白是被忽视的，为了确定有效性。如果有前缀的输入字符串是一个有效的
+数字，这个例程返回错误但仍转换   前缀并将结果写入到* presult。
 */
 int sqlite3AtoF(const char *z, double *pResult, int length, u8 enc){
 #ifndef SQLITE_OMIT_FLOATING_POINT
@@ -427,6 +479,10 @@ do_atof_calc:
 **      compare2pow63("9223372036854775800", 1)
 **
 ** will return -8.
+将 19个字符的 字符串znum和文本表示值 2 ^ 63:9223372036854775808比较如果	znum
+是小于，等于，或大于字符串。返回负，零或正需要注意的是，znum必须正好包含19个
+字符。如果只有最后一位数不同，则不像memcmp()这个程序是保证返回最后一个数字值的
+差异。
 */
 static int compare2pow63(const char *zNum, int incr){
   int c = 0;
@@ -462,6 +518,11 @@ static int compare2pow63(const char *zNum, int incr){
 ** length is the number of bytes in the string (bytes, not characters).
 ** The string is not necessarily zero-terminated.  The encoding is
 ** given by enc.
+把zNum转换为64位有符号整数。如果znum值被表示为一个64位补码整数，然后将值写入
+pnum并返回0。如果znum正好是922337203685466580，返回2。这种特殊情况被打破，因
+为当9223372036854665808不能成为一个有符号的64位整数，但是-9223372036854665808
+可以。如果zNum对于一个64位的整数太大，而又不是9223372036854665808则返回1。
+在字符串中，长度是字节数。字符串不需要零终止，是由ENC编码
 */
 int sqlite3Atoi64(const char *zNum, i64 *pNum, int length, u8 enc){
   int incr = (enc==SQLITE_UTF8?1:2);
@@ -531,6 +592,11 @@ int sqlite3Atoi64(const char *zNum, i64 *pNum, int length, u8 enc){
 ** Any non-numeric characters that following zNum are ignored.
 ** This is different from sqlite3Atoi64() which requires the
 ** input number to be zero-terminated.
+如果znum代表一个整数，将填满32位，然后设置
+*pValue指向那个整数，并返回真。否则返回假
+一些zNum的，任何非数字字符将会被忽略这点和
+sqlite3Atoi64()要求输入的数字以零终止不同。
+
 */
 int sqlite3GetInt32(const char *zNum, int *pValue){
   sqlite_int64 v = 0;
@@ -605,6 +671,29 @@ int sqlite3Atoi(const char *z){
 ** for all bytes that have the 8th bit set and one byte with the 8th
 ** bit clear.  Except, if we get to the 9th byte, it stores the full
 ** 8 bits and is the last byte.
+可变长度的整数编码如下：
+**
+** KEY:
+**         A = 0xxxxxxx    7 bits of data and one flag bit
+**         B = 1xxxxxxx    7 bits of data and one flag bit
+**         C = xxxxxxxx    8 bits of data
+**
+**  7 bits - A
+** 14 bits - BA
+** 21 bits - BBA
+** 28 bits - BBBA
+** 35 bits - BBBBA
+** 42 bits - BBBBBA
+** 49 bits - BBBBBBA
+** 56 bits - BBBBBBBA
+** 64 bits - BBBBBBBBC
+写一个64位变长的整数到内存，以p[0]开始写入的数据长度在1到9个字节
+之间，并将写入的字节数返回。
+一个可变长度的整数每个字节由低7位组成，对所有8位的字节，设置一个
+字节的第8位清除此外，如果我们得到第九字节，则它存储了完整的8位，
+但也是在最后一个字节。
+
+
 */
 int sqlite3PutVarint(unsigned char *p, u64 v){
   int i, j, n;
@@ -638,6 +727,12 @@ int sqlite3PutVarint(unsigned char *p, u64 v){
 ** is provided which inlines the single-byte case.  All code should use
 ** the MACRO version as this function assumes the single-byte case has
 ** already been handled.
+只适用于32位正整数，这是小整数一般情
+况下的优化。一个宏指令，putVarint32，
+提供内联单字节的情况。所有的代码应该
+使用MACRO宏指令，正如这个函数假定单字
+节的案例已经被处理。
+
 */
 int sqlite3PutVarint32(unsigned char *p, u32 v){
 #ifndef putVarint32
@@ -658,6 +753,10 @@ int sqlite3PutVarint32(unsigned char *p, u32 v){
 ** Bitmasks used by sqlite3GetVarint().  These precomputed constants
 ** are defined here rather than simply putting the constant expressions
 ** inline in order to work around bugs in the RVT compiler.
+用sqlite3getvarint()掩码。这些预先计算的常量在这
+被定义而不是为了解决在RVT编译器的错误 ，简单的把
+常量表达式内嵌。
+
 **
 ** SLOT_2_0     A mask for  (0x7f<<14) | 0x7f
 **
@@ -670,6 +769,9 @@ int sqlite3PutVarint32(unsigned char *p, u32 v){
 /*
 ** Read a 64-bit variable-length integer from memory starting at p[0].
 ** Return the number of bytes read.  The value is stored in *v.
+从内存中读一个64位变长的整数，从p[0]开始读 。返回读取的字节数。
+这个值存储在*v。
+
 */
 u8 sqlite3GetVarint(const unsigned char *p, u64 *v){
   u32 a,b,s;
@@ -840,6 +942,10 @@ u8 sqlite3GetVarint(const unsigned char *p, u64 *v){
 ** A MACRO version, getVarint32, is provided which inlines the 
 ** single-byte case.  All code should use the MACRO version as 
 ** this function assumes the single-byte case has already been handled.
+从内存中读一个32位变长的整数，从p[0]开始读 。返回读取的字节数，这个值被保存在*v.
+如果 存储在p[0]的varint大于能够放入一个32位无符号整数，就把*v设置为0xffffffff.
+一个宏指令，getvarint32，提供内联单字节的情况。所有的代码应该使用宏指令，这个函
+数假定单字节的案例已经被处理。
 */
 u8 sqlite3GetVarint32(const unsigned char *p, u32 *v){
   u32 a,b;
@@ -889,10 +995,13 @@ u8 sqlite3GetVarint32(const unsigned char *p, u32 *v){
   ** Objects are rarely larger than 2MiB limit of a 3-byte varint.
   ** A 3-byte varint is sufficient, for example, to record the size
   ** of a 1048569-byte BLOB or string.
-  **
+  一个32位varint通常用来存储b树信息的大小对象是极少超过一个3字节变异体2mib极限。
+  一个3字节的变异体是足够的，例如，记录一个1048569字节的块或字符串的大小。
   ** We only unroll the first 1-, 2-, and 3- byte cases.  The very
   ** rare larger cases can be handled by the slower 64-bit varint
   ** routine.
+  我们只显示前1 -，2 -，和3字节的情况。 非常罕见的较大的情况下
+  可以通过速度较慢的64位varint程序处理。
   */
 #if 1
   {
@@ -914,6 +1023,9 @@ u8 sqlite3GetVarint32(const unsigned char *p, u32 *v){
   /* For following code (kept for historical record only) shows an
   ** unrolling for the 3- and 4-byte varint cases.  This code is
   ** slightly faster, but it is also larger and much harder to test.
+  以下代码（保存历史记录）表明一个展开的3 -和4个字节的varint情况。
+  此代码是速度稍快，但也更大，更难的测验。
+
   */
   p++;
   b = b<<14;
@@ -946,7 +1058,10 @@ u8 sqlite3GetVarint32(const unsigned char *p, u32 *v){
   /* We can only reach this point when reading a corrupt database
   ** file.  In that case we are not in any hurry.  Use the (relatively
   ** slow) general-purpose sqlite3GetVarint() routine to extract the
-  ** value. */
+  ** value. 
+  我们只能做到这一点阅读损坏的数据库文件时。在这种情况下，
+  我们并不着急。使用（较慢）通用sqlite3getvarint()常规提取。
+*/
   {
     u64 v64;
     u8 n;
@@ -993,6 +1108,8 @@ void sqlite3Put4byte(unsigned char *p, u32 v){
 ** Translate a single byte of Hex into an integer.
 ** This routine only works if h really is a valid hexadecimal
 ** character:  0..9a..fA..F
+转化一个单字节的十六进制为整数。如果h真的是一个有效的十六
+进制符号...这个函数才发挥作用。
 */
 u8 sqlite3HexToInt(int h){
   assert( (h>='0' && h<='9') ||  (h>='a' && h<='f') ||  (h>='A' && h<='F') );
@@ -1011,6 +1128,9 @@ u8 sqlite3HexToInt(int h){
 ** value.  Return a pointer to its binary value.  Space to hold the
 ** binary value has been obtained from malloc and must be freed by
 ** the calling routine.
+转换一个blob文字的形式的“x' hhhhhh”为其二进制值。返回一个指向它的二进制值指针。
+用来容纳二进制的空间已经从malloc获得，并且必须在函数调用后被释放。
+
 */
 void *sqlite3HexToBlob(sqlite3 *db, const char *z, int n){
   char *zBlob;
@@ -1032,6 +1152,8 @@ void *sqlite3HexToBlob(sqlite3 *db, const char *z, int n){
 ** Log an error that is an API call on a connection pointer that should
 ** not have been used.  The "type" of connection pointer is given as the
 ** argument.  The zType is a word like "NULL" or "closed" or "invalid".
+记录一个错误，这个错误是API调用了不应该被使用的连接指针。连接指针的“类型”
+作为参数给出。该ztype这个词就像“空”或“关闭”或“无效”。
 */
 static void logBadConnection(const char *zType){
   sqlite3_log(SQLITE_MISUSE, 
@@ -1053,6 +1175,14 @@ static void logBadConnection(const char *zType){
 ** use.  sqlite3SafetyCheckSickOrOk() allows a db pointer that failed to
 ** open properly and is not fit for general use but which can be
 ** used as an argument to sqlite3_errmsg() or sqlite3_close().
+检查,以确保我们有一个有效的数据库指针。这个测试不是万无一失的，
+但是它提供了一些保护措施防止不正确的接口调用。例如 通过数据库
+空指针或者是已经关闭的指针如果这个例程返回1，这意味着数据库指
+针是有效的，如果这个指针因任何理由解除，则返回0。
+sqlite3safetycheckok()要求数据库指针的有效使用。
+sqlite3safetychecksickorok()允许数据库指针未能正确打开，不适合
+一般用途，但是可以作为一个参数给sqlite3_errmsg()或sqlite3_close()。
+
 */
 int sqlite3SafetyCheckOk(sqlite3 *db){
   u32 magic;
@@ -1090,6 +1220,10 @@ int sqlite3SafetyCheckSickOrOk(sqlite3 *db){
 ** the other 64-bit signed integer at *pA and store the result in *pA.
 ** Return 0 on success.  Or if the operation would have resulted in an
 ** overflow, leave *pA unchanged and return 1.
+尝试添加，减去，或乘64位有符号值Ib不允许其他
+64位有符号整数操作指针，并将结果存储在* pA的。
+返回0表示成功。如果操作会导致溢出，离开* pA并
+保持原值不变且返回1。
 */
 int sqlite3AddInt64(i64 *pA, i64 iB){
   i64 iA = *pA;
@@ -1146,6 +1280,8 @@ int sqlite3MulInt64(i64 *pA, i64 iB){
 /*
 ** Compute the absolute value of a 32-bit signed integer, of possible.  Or 
 ** if the integer has a value of -2147483648, return +2147483647
+计算一个32位有符号整数的绝对值，如果该整数为-2147483648的值，返回2147483647。
+
 */
 int sqlite3AbsInt32(int x){
   if( x>=0 ) return x;
@@ -1160,10 +1296,17 @@ int sqlite3AbsInt32(int x){
 ** if filename in z[] has a suffix (a.k.a. "extension") that is longer than
 ** three characters, then shorten the suffix on z[] to be the last three
 ** characters of the original suffix.
+如果SQLITE_ENABLE_8_3_NAMES被设置在编译时如果在zBaseFilename的数
+据库文件名是一个URI的“8_3_names= 1”的参数，并且如果文件名中Z[]有
+一个后缀（又名“扩展名”），该长度大于3个字符，那么缩短原始z后缀的
+最后三个字符。
 **
 ** If SQLITE_ENABLE_8_3_NAMES is set to 2 at compile-time, then always
 ** do the suffix shortening regardless of URI parameter.
 **
+如果SQLITE_ENABLE_8_3_NAMES设置为2，在编译时，
+则总是做后缀缩短不管URI参数。
+
 ** Examples:
 **
 **     test.db-journal    =>   test.nal
